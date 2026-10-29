@@ -1,0 +1,10 @@
+streamlit
+openai
+pydantic
+pyyaml
+python-dotenv
+sqlalchemy
+sqlglot
+pandas
+pytest
+ruff

@@ -1,0 +1,42 @@
+# Analytics Agent
+
+A text-to-SQL chat app. Ask a question in plain language; the agent asks a clarifying question if it needs to, writes SQL, runs it read-only and shows the results. Built with Streamlit and Kimi (Moonshot AI) through its OpenAI-compatible API. See `analytics-agent-design.md` for the design.
+
+## Setup
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env          # then set a provider's key and model (see below)
+python -m analytics_agent.seed_db
+streamlit run analytics_agent/app.py
+```
+
+## Model providers
+
+Both providers use the OpenAI-compatible chat API. Configure either or both in `.env`:
+
+| Provider | Variables |
+|---|---|
+| Kimi (Moonshot) | `MOONSHOT_API_KEY`, optional `KIMI_MODEL`, optional `MOONSHOT_BASE_URL` (`https://api.moonshot.cn/v1` for China) |
+| OpenAI | `OPENAI_API_KEY`, optional `OPENAI_MODEL`, `OPENAI_BASE_URL` |
+
+A provider is available once its key is set. The sidebar has a **Provider** selector and a **Model** selector, which lists the models fetched from the provider's API (type a model id if the list cannot be fetched). The `*_MODEL` variable is just the default selection. You can change either at any point, even mid-conversation. `LLM_PROVIDER=kimi|openai` chooses which is selected first. Check each provider's docs for current model ids.
+
+Tests and lint: `pytest` and `ruff check .`
+
+## How it works
+
+`app.py` (UI) → `agent.py` (loop over three tools: `ask_clarification`, `run_sql`, `final_answer`) → `prompts.py` + `metadata.py` (YAML → prompt), `llm.py` (Kimi or OpenAI), `db.py` (sqlglot guard + SQLAlchemy). SQL must be a single SELECT, gets a `LIMIT`, runs with a timeout, and on SQLite the connection is also `query_only`. For a real database, use a read-only user.
+
+## Using it for another domain
+
+The Python code knows nothing about the domain. Everything lives in `semantic_layer/`:
+
+1. Replace `data_catalog/*.yaml` (one file per table), `knowledge.yaml` and `examples.yaml`. Section 6 of the design doc describes the format. `knowledge.yaml`'s `app` section sets the title, subtitle and starter questions.
+2. Set `DATABASE_URL` to the new database (install its SQLAlchemy driver). `seed.sql` is only for building the demo database.
+3. Run the app. No code changes.
+
+`tests/test_no_domain_terms.py` fails if a table, metric or glossary term from `semantic_layer/` shows up in any `.py` file under `analytics_agent/`.
+
+Mark sensitive columns with `pii: true` to keep them out of the prompt. Put terms that need a clarifying question under `ambiguities`.

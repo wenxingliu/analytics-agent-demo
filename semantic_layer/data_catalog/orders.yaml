@@ -1,0 +1,31 @@
+table: orders
+description: >
+  One row per customer order. Cancelled and refunded orders are kept, with the matching status.
+grain: one row per order_id
+primary_key: [order_id]
+tags: [sales, revenue]
+
+columns:
+  - name: order_id
+    type: INTEGER
+    description: Unique order identifier.
+  - name: customer_id
+    type: INTEGER
+    description: The customer who placed the order.
+    foreign_key: customers.customer_id
+  - name: order_date
+    type: DATE
+    description: Date the order was placed (UTC), formatted YYYY-MM-DD.
+  - name: status
+    type: VARCHAR
+    description: Order lifecycle status.
+    allowed_values: [pending, shipped, delivered, cancelled, refunded]
+  - name: total_amount
+    type: DECIMAL(12,2)
+    description: Order total in USD, including tax, excluding shipping.
+
+relationships:
+  - to_table: customers
+    on: orders.customer_id = customers.customer_id
+  - to_table: order_items
+    on: orders.order_id = order_items.order_id

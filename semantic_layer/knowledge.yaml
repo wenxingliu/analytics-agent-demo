@@ -1,0 +1,31 @@
+app:
+  title: Acme Sales Analytics
+  subtitle: Ask questions about orders, customers and products.
+  starter_questions:
+    - What was revenue last month?
+    - Who are our top 10 customers by AOV?
+    - Which product categories sell the most units?
+
+business_overview: >
+  Acme is a B2C e-commerce company selling home goods in the US and Canada.
+
+metrics:
+  - name: revenue
+    definition: Sum of orders.total_amount for orders that are not cancelled or refunded.
+    sql: SUM(CASE WHEN status NOT IN ('cancelled','refunded') THEN total_amount END)
+
+glossary:
+  - term: AOV
+    meaning: Average order value = revenue / number of orders that are not cancelled or refunded.
+
+rules:
+  - Weeks start on Monday.
+  - '"Last month" means the previous full calendar month, not the last 30 days.'
+  - Always exclude test accounts (customers.is_test = 1).
+  - Dates are stored as text in YYYY-MM-DD format; use SQLite date functions such as strftime and date.
+
+ambiguities:
+  - term: sales
+    note: Could mean revenue (USD) or number of orders.
+  - term: best customers
+    note: Could mean highest revenue, most orders or highest AOV.

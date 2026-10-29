@@ -1,0 +1,28 @@
+table: customers
+description: One row per registered customer, including internal test accounts.
+grain: one row per customer_id
+primary_key: [customer_id]
+tags: [customers]
+
+columns:
+  - name: customer_id
+    type: INTEGER
+    description: Unique customer identifier.
+  - name: full_name
+    type: VARCHAR
+    description: Customer name.
+    pii: true
+  - name: email
+    type: VARCHAR
+    description: Customer email address.
+    pii: true
+  - name: country
+    type: VARCHAR
+    description: Customer country.
+    allowed_values: [US, Canada]
+  - name: signup_date
+    type: DATE
+    description: Date the customer registered, formatted YYYY-MM-DD.
+  - name: is_test
+    type: INTEGER
+    description: 1 for internal test accounts, otherwise 0.
