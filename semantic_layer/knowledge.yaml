@@ -1,31 +1,97 @@
 app:
   title: Acme Sales Analytics
-  subtitle: Ask questions about orders, customers and products.
+  subtitle: Ask questions about orders, revenue, customers, products and refunds.
   starter_questions:
-    - What was revenue last month?
-    - Who are our top 10 customers by AOV?
-    - Which product categories sell the most units?
+    - What was net revenue by fiscal quarter?
+    - Who are our top 10 customers by order value last month?
+    - Which product groups sold the most units last month?
 
 business_overview: >
-  Acme is a B2C e-commerce company selling home goods in the US and Canada.
+  Acme is a B2C e-commerce company selling home goods in the US, Canada and the UK through its website,
+  mobile app, call center and a third-party marketplace. Data comes from a legacy warehouse with terse
+  column names and coded values.
 
 metrics:
-  - name: revenue
-    definition: Sum of orders.total_amount for orders that are not cancelled or refunded.
-    sql: SUM(CASE WHEN status NOT IN ('cancelled','refunded') THEN total_amount END)
+  - name: gmv
+    definition: >
+      Gross merchandise value in USD: (gross_amt_lcl - disc_amt_lcl) converted to USD, for orders placed
+      (by ord_ts), not cancelled (ord_sts_cd <> 90), excluding exchange orders, test accounts and B2B orders.
+      Includes marketplace orders at full value. Tax and shipping are excluded.
+    sql: >
+      SUM((h.gross_amt_lcl - h.disc_amt_lcl) * fx.rate_to_usd)
+      -- fx joined on fx.curr_cd = h.curr_cd AND fx.fx_mth = strftime('%Y-%m', h.ord_ts)
+  - name: recognized_revenue
+    definition: >
+      Revenue in USD, recognized when the order ships (by shp_ts, not ord_ts): (gross_amt_lcl - disc_amt_lcl)
+      converted to USD at the rate of the shipping month. Only orders with ord_sts_cd IN (30, 40, 95), excluding
+      exchange orders, test accounts and B2B orders. For marketplace orders (ord_chnl_cd = 'MKT') Acme only
+      earns a 12% commission, so multiply by 0.12. Returned orders (95) still count here; the refund reduces
+      net_revenue in the period it is paid.
+    sql: >
+      SUM((h.gross_amt_lcl - h.disc_amt_lcl) * fx.rate_to_usd * CASE WHEN h.ord_chnl_cd = 'MKT' THEN 0.12 ELSE 1 END)
+      -- fx joined on fx.curr_cd = h.curr_cd AND fx.fx_mth = strftime('%Y-%m', h.shp_ts)
+  - name: refunds_usd
+    definition: >
+      Refunds in USD, dated by rfnd_ts (reporting date), converted at the rate of the refund month, for the same
+      orders that count as recognized revenue (same exclusions, same 0.12 factor for marketplace orders).
+      Goodwill credits (rfnd_typ_cd = 'GDW') are not refunds for this purpose.
+    sql: >
+      SUM(r.rfnd_amt_lcl * fx.rate_to_usd * CASE WHEN h.ord_chnl_cd = 'MKT' THEN 0.12 ELSE 1 END)
+      -- fx joined on fx.curr_cd = h.curr_cd AND fx.fx_mth = strftime('%Y-%m', r.rfnd_ts)
+  - name: net_revenue
+    definition: recognized_revenue minus refunds_usd in the same period. Compute each in its own subquery by period, then subtract.
+  - name: aov
+    definition: gmv divided by the number of orders counted in gmv.
+  - name: units_sold
+    definition: >
+      Units shipped: SUM(qty) from fct_ord_ln where ln_typ_cd IN ('STD', 'CMP') and ln_sts_cd = 'SHP',
+      for orders that count as recognized revenue. BND lines are not counted so bundles are not double counted.
+    sql: SUM(l.qty)
+  - name: active_customers
+    definition: >
+      Distinct customers (after merging duplicates) with at least one order counted in gmv placed in the
+      trailing 90 days. Logging in does not make a customer active.
+    sql: COUNT(DISTINCT COALESCE(c.mrg_to_cust_id, c.cust_id))
 
 glossary:
-  - term: AOV
-    meaning: Average order value = revenue / number of orders that are not cancelled or refunded.
+  - term: FY
+    meaning: >
+      Fiscal year. Starts on 1 February and is named after the calendar year in which it ends: FY2026 runs
+      2025-02-01 to 2026-01-31. Quarters: Q1 Feb-Apr, Q2 May-Jul, Q3 Aug-Oct, Q4 Nov-Jan.
+  - term: Reporting date
+    meaning: >
+      The business day in US Eastern time. Timestamps are stored in UTC, so use date(ts, '-5 hours')
+      (DST is ignored) before grouping by day, week, month or quarter.
+  - term: Exchange order
+    meaning: A replacement order with parent_ord_id set. It is not new demand.
+  - term: Merged customer
+    meaning: A duplicate account with mrg_to_cust_id set. Count it as the account it was merged into.
+  - term: Net sales
+    meaning: Same as gmv unless the user says otherwise.
+  - term: Marketplace
+    meaning: Orders with ord_chnl_cd = 'MKT', fulfilled for third-party marketplaces.
+  - term: Category
+    meaning: A product group, ref_prod_grp.grp_nm. "Department" means ref_prod_grp.dept_cd.
 
 rules:
-  - Weeks start on Monday.
-  - '"Last month" means the previous full calendar month, not the last 30 days.'
-  - Always exclude test accounts (customers.is_test = 1).
-  - Dates are stored as text in YYYY-MM-DD format; use SQLite date functions such as strftime and date.
+  - Always exclude test accounts (dim_cust.tst_acct_flg = 'Y'), exchange orders (parent_ord_id IS NOT NULL) and, unless the user asks for B2B or all customers, B2B orders (b2b_flg = 'Y').
+  - Never use fct_ord_hdr.tot_amt (deprecated). Money columns ending in _lcl are in local currency; always convert to USD with ref_fx_rate before summing across orders.
+  - Timestamps are UTC text. Convert to the reporting date, date(ts, '-5 hours'), before grouping or filtering by calendar period.
+  - '"Last month" means the previous full calendar month in the reporting date, not the last 30 days. Weeks start on Monday.'
+  - 'Quarters and years are fiscal unless the user says "calendar". Fiscal quarter label for a date d: ''FY'' || strftime(''%Y'', d, ''+11 months'') || ''-Q'' || (((CAST(strftime(''%m'', d) AS INTEGER) + 10) % 12) / 3 + 1).'
+  - To count customers, use COALESCE(mrg_to_cust_id, cust_id) as the customer identity.
+  - cust_tier_cd is the current tier, not the tier when the order was placed.
+  - Do not filter on dim_sku.actv_flg unless asked; discontinued products still have sales.
+  - Order counts and AOV use orders, not lines; join fct_ord_ln only when product detail is needed, and do not sum header amounts after joining to lines (they would repeat).
 
 ambiguities:
   - term: sales
-    note: Could mean revenue (USD) or number of orders.
+    note: Could mean gmv (orders placed), recognized_revenue (shipped, marketplace at commission) or net_revenue (after refunds).
+  - term: revenue
+    note: Default to recognized_revenue; use net_revenue only if the user mentions refunds, returns or "net".
   - term: best customers
-    note: Could mean highest revenue, most orders or highest AOV.
+    note: Could mean highest order value, most orders or highest loyalty tier.
+  - term: returns
+    note: Could mean orders with status 95 or refund amounts in fct_rfnd; they differ in timing.
+  - term: last year
+    note: Fiscal year or calendar year; default to fiscal and state it.

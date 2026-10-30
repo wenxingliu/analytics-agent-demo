@@ -8,7 +8,7 @@ A text-to-SQL chat app. Ask a question in plain language; the agent asks a clari
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env          # then set a provider's key and model (see below)
-python -m analytics_agent.seed_db
+python -m demo.seed_db
 streamlit run analytics_agent/app.py
 ```
 
@@ -34,7 +34,7 @@ Tests and lint: `pytest` and `ruff check .`
 The Python code knows nothing about the domain. Everything lives in `semantic_layer/`:
 
 1. Replace `data_catalog/*.yaml` (one file per table), `knowledge.yaml` and `examples.yaml`. Section 6 of the design doc describes the format. `knowledge.yaml`'s `app` section sets the title, subtitle and starter questions.
-2. Set `DATABASE_URL` to the new database (install its SQLAlchemy driver). `seed.sql` is only for building the demo database.
+2. Set `DATABASE_URL` to the new database (install its SQLAlchemy driver). `demo/` (`seed.sql`, `seed_db.py`) is only for building the demo database.
 3. Run the app. No code changes.
 
 `tests/test_no_domain_terms.py` fails if a table, metric or glossary term from `semantic_layer/` shows up in any `.py` file under `analytics_agent/`.

@@ -1,0 +1,71 @@
+table: dim_cust
+description: >
+  Customer master, one row per customer account. Includes internal test accounts, closed accounts
+  and duplicate accounts that were merged into another one (see mrg_to_cust_id).
+grain: one row per cust_id
+primary_key: [cust_id]
+tags: [customers, loyalty]
+
+columns:
+  - name: cust_id
+    type: INTEGER
+    description: Customer account id.
+  - name: cust_nm
+    type: VARCHAR
+    description: Customer full name.
+    pii: true
+  - name: eml_addr
+    type: VARCHAR
+    description: Email address.
+    pii: true
+  - name: ph_no
+    type: VARCHAR
+    description: Phone number; often NULL.
+    pii: true
+  - name: ctry_cd
+    type: VARCHAR
+    description: Country of residence (ISO 2-letter).
+    allowed_values: [US, CA, GB]
+  - name: st_prov_cd
+    type: VARCHAR
+    description: US state or Canadian province code. NULL for GB.
+  - name: reg_ts
+    type: TIMESTAMP
+    description: Registration time, UTC, text 'YYYY-MM-DD HH:MM:SS'.
+  - name: reg_chnl_cd
+    type: VARCHAR
+    description: Channel the customer registered through. WEB = website, APP = mobile app, STR = in store, REF = referral.
+    allowed_values: [WEB, APP, STR, REF]
+  - name: cust_tier_cd
+    type: VARCHAR
+    description: >
+      Loyalty tier, recalculated nightly. This is the current tier only, not the tier at the time of an order.
+      B = Bronze, S = Silver, G = Gold, P = Platinum.
+    allowed_values: [B, S, G, P]
+  - name: mktg_optin_flg
+    type: VARCHAR
+    description: Y if the customer agreed to marketing emails, otherwise N.
+    allowed_values: [Y, N]
+  - name: acct_sts_cd
+    type: VARCHAR
+    description: Account status. A = active, S = suspended, C = closed. Closed accounts keep their order history.
+    allowed_values: [A, S, C]
+  - name: tst_acct_flg
+    type: VARCHAR
+    description: Y for internal test accounts, otherwise N.
+    allowed_values: ["Y", "N"]
+  - name: mrg_to_cust_id
+    type: INTEGER
+    description: If not NULL, this account is a duplicate that was merged into the account with this cust_id.
+    foreign_key: dim_cust.cust_id
+  - name: ref_cust_id
+    type: INTEGER
+    description: The customer who referred this one. Only set when reg_chnl_cd = 'REF'.
+    foreign_key: dim_cust.cust_id
+  - name: lst_login_ts
+    type: TIMESTAMP
+    description: Last login time, UTC. Logins are not orders; do not use this to define active customers.
+
+relationships:
+  - to_table: fct_ord_hdr
+    on: dim_cust.cust_id = fct_ord_hdr.cust_id

@@ -1,0 +1,88 @@
+table: fct_ord_hdr
+description: >
+  Order header, one row per order. Includes cancelled orders, test-account orders, B2B orders
+  and exchange (replacement) orders, so most analysis needs filters. Money columns ending in _lcl
+  are in the order's own currency (curr_cd), not USD.
+grain: one row per ord_id
+primary_key: [ord_id]
+tags: [orders, sales, revenue, shipping]
+
+columns:
+  - name: ord_id
+    type: INTEGER
+    description: Order id.
+  - name: cust_id
+    type: INTEGER
+    description: Account that placed the order. May be a merged duplicate; see dim_cust.mrg_to_cust_id.
+    foreign_key: dim_cust.cust_id
+  - name: ord_ts
+    type: TIMESTAMP
+    description: When the order was placed, UTC, text 'YYYY-MM-DD HH:MM:SS'.
+  - name: shp_ts
+    type: TIMESTAMP
+    description: When the order shipped, UTC, same text format. NULL if not shipped yet or cancelled.
+  - name: ord_sts_cd
+    type: INTEGER
+    description: >
+      Order status code. 10 = created, payment pending. 20 = paid, not shipped. 30 = shipped.
+      40 = delivered. 90 = cancelled before shipping. 95 = returned (shipped, then fully returned).
+    allowed_values: ["10", "20", "30", "40", "90", "95"]
+  - name: ord_chnl_cd
+    type: VARCHAR
+    description: Sales channel. WEB = website, APP = mobile app, CS = call center, MKT = third-party marketplace.
+    allowed_values: [WEB, APP, CS, MKT]
+  - name: curr_cd
+    type: VARCHAR
+    description: Currency of all _lcl amounts on this order.
+    allowed_values: [USD, CAD, GBP]
+  - name: gross_amt_lcl
+    type: DECIMAL(12,2)
+    description: Sum of priced line amounts (qty * unit price) before discounts, tax and shipping, in curr_cd.
+  - name: disc_amt_lcl
+    type: DECIMAL(12,2)
+    description: Total discounts (line discounts plus promo code), in curr_cd.
+  - name: tax_amt_lcl
+    type: DECIMAL(12,2)
+    description: Sales tax charged, in curr_cd. Tax is collected for the government and is not revenue.
+  - name: shp_fee_lcl
+    type: DECIMAL(12,2)
+    description: Shipping fee charged to the customer, in curr_cd. Not part of revenue.
+  - name: tot_amt
+    type: DECIMAL(12,2)
+    description: >
+      DEPRECATED legacy total. Only filled for orders before 2025-07-01, and it ignores discounts and shipping.
+      Do not use; compute from gross_amt_lcl and disc_amt_lcl instead.
+  - name: promo_cd
+    type: VARCHAR
+    description: Promo code used, or NULL.
+  - name: pymt_mthd_cd
+    type: VARCHAR
+    description: Payment method. CC = credit card, PP = PayPal, GC = gift card, BNPL = buy now pay later.
+    allowed_values: [CC, PP, GC, BNPL]
+  - name: b2b_flg
+    type: VARCHAR
+    description: Y if the order is a business (wholesale) order, otherwise N.
+    allowed_values: ["Y", "N"]
+  - name: ship_ctry_cd
+    type: VARCHAR
+    description: Destination country (ISO 2-letter).
+  - name: cncl_rsn_cd
+    type: VARCHAR
+    description: Cancellation reason, only when ord_sts_cd = 90. CUST = customer asked, FRAUD = fraud check, OOS = out of stock.
+    allowed_values: [CUST, FRAUD, OOS]
+  - name: parent_ord_id
+    type: INTEGER
+    description: >
+      Set only on exchange (replacement) orders, pointing to the original order. These are not new demand:
+      exclude them from order counts and revenue.
+    foreign_key: fct_ord_hdr.ord_id
+
+relationships:
+  - to_table: dim_cust
+    on: fct_ord_hdr.cust_id = dim_cust.cust_id
+  - to_table: fct_ord_ln
+    on: fct_ord_hdr.ord_id = fct_ord_ln.ord_id
+  - to_table: fct_rfnd
+    on: fct_ord_hdr.ord_id = fct_rfnd.ord_id
+  - to_table: ref_fx_rate
+    on: fct_ord_hdr.curr_cd = ref_fx_rate.curr_cd AND ref_fx_rate.fx_mth = strftime('%Y-%m', <timestamp column>)

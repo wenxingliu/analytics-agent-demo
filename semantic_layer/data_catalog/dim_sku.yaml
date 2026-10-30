@@ -1,0 +1,49 @@
+table: dim_sku
+description: Product master, one row per sellable item (including bundles and discontinued items).
+grain: one row per sku_id
+primary_key: [sku_id]
+tags: [products, catalog]
+
+columns:
+  - name: sku_id
+    type: INTEGER
+    description: Product id.
+  - name: sku_nm
+    type: VARCHAR
+    description: Product name.
+  - name: grp_cd
+    type: VARCHAR
+    description: Product group code. Names are in ref_prod_grp.
+    foreign_key: ref_prod_grp.grp_cd
+  - name: brand_cd
+    type: VARCHAR
+    description: Brand. ACM = Acme house brand, NRD and HVN = partner brands.
+    allowed_values: [ACM, NRD, HVN]
+  - name: list_prc_usd
+    type: DECIMAL(10,2)
+    description: Current list price in USD. Orders can have been placed at other prices; use fct_ord_ln.unit_prc_lcl for sales.
+  - name: cost_usd
+    type: DECIMAL(10,2)
+    description: Unit cost in USD.
+  - name: launch_dt
+    type: DATE
+    description: Date the product launched, 'YYYY-MM-DD'.
+  - name: discont_dt
+    type: DATE
+    description: Date the product was discontinued, or NULL.
+  - name: actv_flg
+    type: VARCHAR
+    description: Y if still sold, N if discontinued. Discontinued products still have sales history.
+    allowed_values: ["Y", "N"]
+  - name: wt_g
+    type: INTEGER
+    description: Shipping weight in grams.
+  - name: vndr_id
+    type: INTEGER
+    description: Vendor id (no vendor table in this database).
+
+relationships:
+  - to_table: ref_prod_grp
+    on: dim_sku.grp_cd = ref_prod_grp.grp_cd
+  - to_table: fct_ord_ln
+    on: dim_sku.sku_id = fct_ord_ln.sku_id

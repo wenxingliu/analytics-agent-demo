@@ -1,0 +1,45 @@
+table: fct_ord_ln
+description: >
+  Order lines, one row per product on an order. Bundles are stored as one priced parent line
+  plus zero-priced component lines, so unit counts and revenue need different line filters.
+grain: one row per (ord_id, ln_no)
+primary_key: [ord_id, ln_no]
+tags: [orders, products, units]
+
+columns:
+  - name: ord_id
+    type: INTEGER
+    description: Order this line belongs to.
+    foreign_key: fct_ord_hdr.ord_id
+  - name: ln_no
+    type: INTEGER
+    description: Line number within the order.
+  - name: sku_id
+    type: INTEGER
+    description: Product on the line.
+    foreign_key: dim_sku.sku_id
+  - name: ln_typ_cd
+    type: VARCHAR
+    description: >
+      STD = regular line. BND = bundle parent, carries the bundle price. CMP = bundle component, price 0.
+      Count units from STD and CMP lines; count line revenue from STD and BND lines.
+    allowed_values: [STD, BND, CMP]
+  - name: qty
+    type: INTEGER
+    description: Units on the line.
+  - name: unit_prc_lcl
+    type: DECIMAL(10,2)
+    description: Price per unit before discounts, in the order's currency (fct_ord_hdr.curr_cd).
+  - name: ln_disc_lcl
+    type: DECIMAL(10,2)
+    description: Discount on the whole line (not per unit) in the order's currency.
+  - name: ln_sts_cd
+    type: VARCHAR
+    description: Line status. SHP = shipped, OPN = open (not shipped yet), CXL = cancelled.
+    allowed_values: [SHP, OPN, CXL]
+
+relationships:
+  - to_table: fct_ord_hdr
+    on: fct_ord_ln.ord_id = fct_ord_hdr.ord_id
+  - to_table: dim_sku
+    on: fct_ord_ln.sku_id = dim_sku.sku_id

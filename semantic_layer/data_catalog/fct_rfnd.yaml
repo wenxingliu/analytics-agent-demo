@@ -1,0 +1,39 @@
+table: fct_rfnd
+description: >
+  Refunds paid to customers, one row per refund. An order can have several refunds.
+  Amounts are in the order's currency, not USD.
+grain: one row per rfnd_id
+primary_key: [rfnd_id]
+tags: [refunds, returns, revenue]
+
+columns:
+  - name: rfnd_id
+    type: INTEGER
+    description: Refund id.
+  - name: ord_id
+    type: INTEGER
+    description: Order that was refunded.
+    foreign_key: fct_ord_hdr.ord_id
+  - name: ln_no
+    type: INTEGER
+    description: Line refunded, or NULL when the refund applies to the whole order.
+  - name: rfnd_ts
+    type: TIMESTAMP
+    description: When the refund was paid, UTC, text 'YYYY-MM-DD HH:MM:SS'.
+  - name: rfnd_amt_lcl
+    type: DECIMAL(12,2)
+    description: Refunded amount in the order's currency (fct_ord_hdr.curr_cd), excluding tax and shipping.
+  - name: rfnd_rsn_cd
+    type: VARCHAR
+    description: Reason. RTN = customer return, DMG = damaged item, LATE = late delivery.
+    allowed_values: [RTN, DMG, LATE]
+  - name: rfnd_typ_cd
+    type: VARCHAR
+    description: >
+      FULL = full order refund, PART = partial refund, GDW = goodwill credit.
+      Goodwill credits are a marketing cost and do not reduce revenue.
+    allowed_values: [FULL, PART, GDW]
+
+relationships:
+  - to_table: fct_ord_hdr
+    on: fct_rfnd.ord_id = fct_ord_hdr.ord_id

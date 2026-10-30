@@ -48,8 +48,7 @@ semantic_layer/
 │   ├── customers.yaml
 │   └── products.yaml
 ├── knowledge.yaml
-├── examples.yaml
-└── seed.sql            # builds the demo database (demo convenience only)
+└── examples.yaml
 ```
 
 ### 2.2 Rules for the implementer
@@ -128,7 +127,9 @@ analytics-agent/
 │   ├── llm.py          # Kimi client (OpenAI SDK with Moonshot base_url)
 │   ├── db.py           # engine, validate_sql() guard, run_query()
 │   ├── config.py       # settings read from environment / .env
-│   └── seed_db.py      # runs semantic_layer/seed.sql against DATABASE_URL
+├── demo/
+│   ├── seed.sql        # demo only: builds the demo database
+│   └── seed_db.py      # demo only: runs demo/seed.sql against DATABASE_URL
 ├── semantic_layer/     # ← ALL domain-specific content (Section 2)
 ├── data/               # generated demo database (git-ignored)
 ├── tests/
@@ -144,7 +145,7 @@ analytics-agent/
 Run with:
 
 ```bash
-python -m analytics_agent.seed_db
+python -m demo.seed_db
 streamlit run analytics_agent/app.py
 ```
 
@@ -477,7 +478,7 @@ Keep tests few and focused:
 
 ## 15. Milestones
 
-1. **Skeleton:** layout, `config.py`, the e-commerce semantic layer (YAML + `seed.sql`), `seed_db.py`, `metadata.py` loading and validation.
+1. **Skeleton:** layout, `config.py`, the e-commerce semantic layer (YAML), `demo/seed.sql` and `demo/seed_db.py`, `metadata.py` loading and validation.
 2. **First answer:** `prompts.py`, `llm.py`, `db.py`, and an `agent.py` that handles `run_sql` + `final_answer`; a basic chat that shows SQL and results.
 3. **Clarify and self-correct:** `ask_clarification` with option buttons; errors sent back to the model.
 4. **Multi-turn:** `Conversation` in session state, follow-ups work.

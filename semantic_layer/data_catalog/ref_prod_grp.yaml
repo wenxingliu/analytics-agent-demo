@@ -1,0 +1,21 @@
+table: ref_prod_grp
+description: Lookup of product group codes to names and departments.
+grain: one row per grp_cd
+primary_key: [grp_cd]
+tags: [products, catalog]
+
+columns:
+  - name: grp_cd
+    type: VARCHAR
+    description: Product group code.
+  - name: grp_nm
+    type: VARCHAR
+    description: Product group name, e.g. what people call a category.
+  - name: dept_cd
+    type: VARCHAR
+    description: Department the group rolls up to.
+    allowed_values: [HOME, LIFESTYLE, BUNDLE]
+
+relationships:
+  - to_table: dim_sku
+    on: ref_prod_grp.grp_cd = dim_sku.grp_cd

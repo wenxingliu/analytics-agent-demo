@@ -1,30 +1,110 @@
 examples:
-  - question: What was monthly revenue in 2025?
+  - question: What was monthly recognized revenue in 2026?
     sql: |
-      SELECT strftime('%Y-%m', o.order_date) AS month,
-             SUM(o.total_amount) AS revenue
-      FROM orders o
-      JOIN customers c ON c.customer_id = o.customer_id
-      WHERE o.status NOT IN ('cancelled', 'refunded')
-        AND c.is_test = 0
-        AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'
+      SELECT strftime('%Y-%m', date(h.shp_ts, '-5 hours')) AS rev_month,
+             ROUND(SUM((h.gross_amt_lcl - h.disc_amt_lcl) * fx.rate_to_usd
+                       * CASE WHEN h.ord_chnl_cd = 'MKT' THEN 0.12 ELSE 1 END), 2) AS recognized_revenue_usd
+      FROM fct_ord_hdr h
+      JOIN dim_cust c ON c.cust_id = h.cust_id
+      JOIN ref_fx_rate fx ON fx.curr_cd = h.curr_cd AND fx.fx_mth = strftime('%Y-%m', h.shp_ts)
+      WHERE h.ord_sts_cd IN (30, 40, 95)
+        AND h.parent_ord_id IS NULL
+        AND h.b2b_flg = 'N'
+        AND c.tst_acct_flg = 'N'
+        AND date(h.shp_ts, '-5 hours') >= '2026-01-01' AND date(h.shp_ts, '-5 hours') < '2027-01-01'
       GROUP BY 1
       ORDER BY 1;
-  - question: What are the top 5 products by units sold?
+  - question: What was net revenue by fiscal quarter?
     sql: |
-      SELECT p.name, SUM(i.quantity) AS units
-      FROM order_items i
-      JOIN orders o ON o.order_id = i.order_id
-      JOIN customers c ON c.customer_id = o.customer_id
-      JOIN products p ON p.product_id = i.product_id
-      WHERE o.status NOT IN ('cancelled', 'refunded') AND c.is_test = 0
-      GROUP BY p.name
-      ORDER BY units DESC
-      LIMIT 5;
-  - question: How many customers signed up per country?
+      WITH rev AS (
+        SELECT 'FY' || strftime('%Y', date(h.shp_ts, '-5 hours'), '+11 months') || '-Q'
+               || (((CAST(strftime('%m', date(h.shp_ts, '-5 hours')) AS INTEGER) + 10) % 12) / 3 + 1) AS fq,
+               SUM((h.gross_amt_lcl - h.disc_amt_lcl) * fx.rate_to_usd
+                   * CASE WHEN h.ord_chnl_cd = 'MKT' THEN 0.12 ELSE 1 END) AS revenue
+        FROM fct_ord_hdr h
+        JOIN dim_cust c ON c.cust_id = h.cust_id
+        JOIN ref_fx_rate fx ON fx.curr_cd = h.curr_cd AND fx.fx_mth = strftime('%Y-%m', h.shp_ts)
+        WHERE h.ord_sts_cd IN (30, 40, 95) AND h.parent_ord_id IS NULL
+          AND h.b2b_flg = 'N' AND c.tst_acct_flg = 'N'
+        GROUP BY 1
+      ),
+      rf AS (
+        SELECT 'FY' || strftime('%Y', date(r.rfnd_ts, '-5 hours'), '+11 months') || '-Q'
+               || (((CAST(strftime('%m', date(r.rfnd_ts, '-5 hours')) AS INTEGER) + 10) % 12) / 3 + 1) AS fq,
+               SUM(r.rfnd_amt_lcl * fx.rate_to_usd
+                   * CASE WHEN h.ord_chnl_cd = 'MKT' THEN 0.12 ELSE 1 END) AS refunds
+        FROM fct_rfnd r
+        JOIN fct_ord_hdr h ON h.ord_id = r.ord_id
+        JOIN dim_cust c ON c.cust_id = h.cust_id
+        JOIN ref_fx_rate fx ON fx.curr_cd = h.curr_cd AND fx.fx_mth = strftime('%Y-%m', r.rfnd_ts)
+        WHERE r.rfnd_typ_cd <> 'GDW' AND h.ord_sts_cd IN (30, 40, 95) AND h.parent_ord_id IS NULL
+          AND h.b2b_flg = 'N' AND c.tst_acct_flg = 'N'
+        GROUP BY 1
+      )
+      SELECT rev.fq AS fiscal_quarter,
+             ROUND(rev.revenue, 2) AS recognized_revenue_usd,
+             ROUND(COALESCE(rf.refunds, 0), 2) AS refunds_usd,
+             ROUND(rev.revenue - COALESCE(rf.refunds, 0), 2) AS net_revenue_usd
+      FROM rev
+      LEFT JOIN rf ON rf.fq = rev.fq
+      ORDER BY 1;
+  - question: How many unique customers ordered each month in 2026?
     sql: |
-      SELECT country, COUNT(*) AS customers
-      FROM customers
-      WHERE is_test = 0
-      GROUP BY country
-      ORDER BY customers DESC;
+      SELECT strftime('%Y-%m', date(h.ord_ts, '-5 hours')) AS ord_month,
+             COUNT(DISTINCT COALESCE(c.mrg_to_cust_id, c.cust_id)) AS customers
+      FROM fct_ord_hdr h
+      JOIN dim_cust c ON c.cust_id = h.cust_id
+      WHERE h.ord_sts_cd <> 90
+        AND h.parent_ord_id IS NULL
+        AND h.b2b_flg = 'N'
+        AND c.tst_acct_flg = 'N'
+        AND date(h.ord_ts, '-5 hours') >= '2026-01-01' AND date(h.ord_ts, '-5 hours') < '2027-01-01'
+      GROUP BY 1
+      ORDER BY 1;
+  - question: Which product groups sold the most units last month?
+    sql: |
+      SELECT g.grp_nm AS product_group,
+             SUM(l.qty) AS units
+      FROM fct_ord_ln l
+      JOIN fct_ord_hdr h ON h.ord_id = l.ord_id
+      JOIN dim_cust c ON c.cust_id = h.cust_id
+      JOIN dim_sku s ON s.sku_id = l.sku_id
+      JOIN ref_prod_grp g ON g.grp_cd = s.grp_cd
+      WHERE l.ln_typ_cd IN ('STD', 'CMP')
+        AND l.ln_sts_cd = 'SHP'
+        AND h.ord_sts_cd IN (30, 40, 95)
+        AND h.parent_ord_id IS NULL
+        AND h.b2b_flg = 'N'
+        AND c.tst_acct_flg = 'N'
+        AND strftime('%Y-%m', date(h.shp_ts, '-5 hours')) = strftime('%Y-%m', date('now', 'start of month', '-1 month'))
+      GROUP BY g.grp_nm
+      ORDER BY units DESC;
+  - question: What is the average order value by channel for the last 3 months?
+    sql: |
+      SELECT h.ord_chnl_cd AS channel,
+             COUNT(*) AS orders,
+             ROUND(SUM((h.gross_amt_lcl - h.disc_amt_lcl) * fx.rate_to_usd) / COUNT(*), 2) AS aov_usd
+      FROM fct_ord_hdr h
+      JOIN dim_cust c ON c.cust_id = h.cust_id
+      JOIN ref_fx_rate fx ON fx.curr_cd = h.curr_cd AND fx.fx_mth = strftime('%Y-%m', h.ord_ts)
+      WHERE h.ord_sts_cd <> 90
+        AND h.parent_ord_id IS NULL
+        AND h.b2b_flg = 'N'
+        AND c.tst_acct_flg = 'N'
+        AND date(h.ord_ts, '-5 hours') >= date('now', 'start of month', '-3 months')
+        AND date(h.ord_ts, '-5 hours') < date('now', 'start of month')
+      GROUP BY 1
+      ORDER BY aov_usd DESC;
+  - question: How many active customers do we have by loyalty tier?
+    sql: |
+      SELECT c.cust_tier_cd AS tier,
+             COUNT(DISTINCT COALESCE(c.mrg_to_cust_id, c.cust_id)) AS active_customers
+      FROM fct_ord_hdr h
+      JOIN dim_cust c ON c.cust_id = h.cust_id
+      WHERE h.ord_sts_cd <> 90
+        AND h.parent_ord_id IS NULL
+        AND h.b2b_flg = 'N'
+        AND c.tst_acct_flg = 'N'
+        AND date(h.ord_ts, '-5 hours') >= date('now', '-90 days')
+      GROUP BY 1
+      ORDER BY 2 DESC;

@@ -1,0 +1,17 @@
+table: ref_fx_rate
+description: Monthly exchange rates to USD, one row per currency per month (USD itself is 1.0).
+grain: one row per (curr_cd, fx_mth)
+primary_key: [curr_cd, fx_mth]
+tags: [currency, revenue]
+
+columns:
+  - name: curr_cd
+    type: VARCHAR
+    description: Currency code.
+    allowed_values: [USD, CAD, GBP]
+  - name: fx_mth
+    type: VARCHAR
+    description: Month the rate applies to, text 'YYYY-MM'. Join with strftime('%Y-%m', <timestamp>).
+  - name: rate_to_usd
+    type: DECIMAL(10,4)
+    description: Multiply a local amount by this to get USD.
