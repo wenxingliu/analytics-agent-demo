@@ -40,3 +40,40 @@ The Python code knows nothing about the domain. Everything lives in `semantic_la
 `tests/test_no_domain_terms.py` fails if a table, metric or glossary term from `semantic_layer/` shows up in any `.py` file under `analytics_agent/`.
 
 Mark sensitive columns with `pii: true` to keep them out of the prompt. Put terms that need a clarifying question under `ambiguities`.
+
+## Evals
+
+The evals run the real agent on a set of questions and score the replies. They make live API calls, so they are separate from `pytest`.
+
+**Prerequisites:** set up as in [Setup](#setup) and put at least one provider key in `.env`. The demo database does not need to be seeded; the runner builds its own.
+
+**Run all cases:**
+
+```bash
+python -m evals.run
+```
+
+**Options:**
+
+| Option | Meaning |
+|---|---|
+| `--provider kimi\|openai` | Provider to test (default: the first one configured in `.env`) |
+| `--model <id>` | Model to test (default: the provider's `*_MODEL`, else the first model it lists) |
+| `-k <text>` | Only run cases whose query contains this text, e.g. `-k revenue` |
+| `--workers <n>` | Cases to run in parallel (default 4) |
+
+```bash
+python -m evals.run --provider openai --model <id> -k refunds
+```
+
+**Reading the output:** each case prints `PASS` or `FAIL` with its type (`number` or `behavior`), failures add a one-line reason, and the end shows totals for each type. The exit code is 0 if every case passed and 1 otherwise, so it can gate a script. A full run takes about two minutes.
+
+**The cases** are in `evals/cases.yaml`. Each has three fields:
+
+- `query`: the question.
+- `exact_match`: `true` if the expected response is a number or name, `false` if it describes a behavior.
+- `expected_response`: for `true`, the correct answer. A number matches if the reply contains it at the precision the reply shows ("$47,904" matches 47903.60). For `false`, the expected behavior in words (out-of-scope questions, schema questions, guardrail violations, clarifying questions), judged by a second model call.
+
+The runner uses a throwaway copy of the demo database and always turns all guardrails on, so your `.env` guardrail settings do not affect it. Each case runs once and model answers vary, so a single failure is something to look at, not necessarily a regression.
+
+**Adding or changing a case:** for a numeric case, add the question and a reference SQL query to `evals/reference.py`, then run `python -m evals.reference` to print the correct answer and copy it into `expected_response`. Use explicit dates ("March 2026") so the answer does not change over time. `pytest` (no API calls) checks the case file format and that every expected number matches its reference query.

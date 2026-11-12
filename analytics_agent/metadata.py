@@ -22,6 +22,11 @@ class Column(Strict):
     foreign_key: str | None = None
     allowed_values: list[str] = []
     pii: bool = False
+    event_time: bool = False  # the date the record belongs to; used by the date guardrail
+    event_time_via_fk: bool = False  # no date of its own: use the table this foreign key points to
+    individual_id: bool = (
+        False  # identifies one person (an id); used by the individual-data guardrail
+    )
 
 
 class Relationship(Strict):
@@ -46,6 +51,7 @@ class Table(Strict):
     tags: list[str] = []
     columns: list[Column]
     relationships: list[Relationship] = []
+    individual_level: bool = False  # one row per person
 
 
 class AppInfo(Strict):

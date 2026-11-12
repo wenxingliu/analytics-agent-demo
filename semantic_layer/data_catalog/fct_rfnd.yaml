@@ -20,6 +20,7 @@ columns:
   - name: rfnd_ts
     type: TIMESTAMP
     description: When the refund was paid, UTC, text 'YYYY-MM-DD HH:MM:SS'.
+    event_time: true
   - name: rfnd_amt_lcl
     type: DECIMAL(12,2)
     description: Refunded amount in the order's currency (fct_ord_hdr.curr_cd), excluding tax and shipping.

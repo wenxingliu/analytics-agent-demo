@@ -3,7 +3,7 @@ app:
   subtitle: Ask questions about orders, revenue, customers, products and refunds.
   starter_questions:
     - What was net revenue by fiscal quarter?
-    - Who are our top 10 customers by order value last month?
+    - How many active customers do we have by loyalty tier?
     - Which product groups sold the most units last month?
 
 business_overview: >

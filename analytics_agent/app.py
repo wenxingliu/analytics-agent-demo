@@ -10,7 +10,7 @@ sys.path.insert(
 
 import streamlit as st
 
-from analytics_agent import agent, db, llm
+from analytics_agent import agent, db, guardrails, llm
 from analytics_agent.agent import Conversation, Reply
 from analytics_agent.config import ConfigError, Provider, load_providers, settings
 from analytics_agent.metadata import Metadata, MetadataError, load_metadata
@@ -46,6 +46,8 @@ def render_sidebar(providers: dict[str, Provider]) -> Provider:
     """Draw the sidebar and return the provider and model the user picked."""
     with st.sidebar:
         provider = pick_model(providers)
+        if active := settings.guardrails.active():
+            st.caption("Guardrails: " + ", ".join(active))
         if st.button("New conversation", width="stretch"):
             st.session_state.conversation = Conversation()
             st.rerun()
@@ -95,6 +97,7 @@ def main() -> None:
     try:
         providers = load_providers()
         metadata = get_metadata()
+        guardrails.validate_config(metadata, settings.guardrails)
     except (ConfigError, MetadataError) as e:
         st.error(str(e))
         st.stop()
