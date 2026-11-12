@@ -12,11 +12,16 @@ columns:
     description: Customer account id.
   - name: cust_nm
     type: VARCHAR
-    description: Customer full name.
+    description: >
+      Customer full name, 'First Last'. Not unique: a merged duplicate account has the same name as the
+      account it was merged into. Group and count customers by id, not by name. Test accounts are named
+      'Test User <id>', but filter them with tst_acct_flg.
     pii: true
   - name: eml_addr
     type: VARCHAR
-    description: Email address.
+    description: >
+      Email address, lower case. Differs between a merged duplicate and the account it was merged into,
+      so it does not identify a person on its own.
     pii: true
   - name: ph_no
     type: VARCHAR
@@ -56,7 +61,9 @@ columns:
     allowed_values: ["Y", "N"]
   - name: mrg_to_cust_id
     type: INTEGER
-    description: If not NULL, this account is a duplicate that was merged into the account with this cust_id.
+    description: >
+      If not NULL, this account is a duplicate that was merged into the account with this cust_id.
+      The duplicate keeps its own email, phone, country and shipping address, which can differ from the surviving account's.
     foreign_key: dim_cust.cust_id
   - name: ref_cust_id
     type: INTEGER
@@ -65,6 +72,31 @@ columns:
   - name: lst_login_ts
     type: TIMESTAMP
     description: Last login time, UTC. Logins are not orders; do not use this to define active customers.
+  - name: shp_addr_ln1
+    type: VARCHAR
+    description: >
+      Default shipping address, street line. This is the customer's current saved address, not the address
+      a past order shipped to; use fct_ord_hdr.ship_ctry_cd for an order's destination country.
+      All shp_* columns are NULL when the customer never saved an address.
+    pii: true
+  - name: shp_addr_ln2
+    type: VARCHAR
+    description: Default shipping address, second line (apartment, flat or suite); usually NULL.
+    pii: true
+  - name: shp_city_nm
+    type: VARCHAR
+    description: Default shipping address, city name.
+  - name: shp_st_prov_cd
+    type: VARCHAR
+    description: Default shipping address, US state or Canadian province code. NULL for GB.
+  - name: shp_pstl_cd
+    type: VARCHAR
+    description: Default shipping address, ZIP or postal code, stored as text.
+    pii: true
+  - name: shp_ctry_cd
+    type: VARCHAR
+    description: Default shipping address, country (ISO 2-letter).
+    allowed_values: [US, CA, GB]
 
 relationships:
   - to_table: fct_ord_hdr

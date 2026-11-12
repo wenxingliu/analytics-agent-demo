@@ -7,6 +7,9 @@ DROP TABLE IF EXISTS dim_sku;
 DROP TABLE IF EXISTS ref_prod_grp;
 DROP TABLE IF EXISTS ref_fx_rate;
 DROP TABLE IF EXISTS dim_cust;
+DROP TABLE IF EXISTS seed_first_nm;
+DROP TABLE IF EXISTS seed_last_nm;
+DROP TABLE IF EXISTS seed_street_nm;
 
 CREATE TABLE dim_cust (
     cust_id        INTEGER PRIMARY KEY,
@@ -23,7 +26,13 @@ CREATE TABLE dim_cust (
     tst_acct_flg   TEXT NOT NULL,
     mrg_to_cust_id INTEGER,
     ref_cust_id    INTEGER,
-    lst_login_ts   TEXT
+    lst_login_ts   TEXT,
+    shp_addr_ln1   TEXT,
+    shp_addr_ln2   TEXT,
+    shp_city_nm    TEXT,
+    shp_st_prov_cd TEXT,
+    shp_pstl_cd    TEXT,
+    shp_ctry_cd    TEXT
 );
 
 CREATE TABLE ref_prod_grp (
@@ -117,8 +126,169 @@ SELECT i,
        CASE WHEN i > 290 THEN 'Y' ELSE 'N' END,
        CASE WHEN i % 40 = 0 THEN i - 1 END,
        CASE WHEN i % 4 = 3 AND i > 5 THEN (i * 7) % (i - 1) + 1 END,
-       datetime('2026-10-28 12:00:00', '-' || ((i * 53) % 200) || ' days')
+       datetime('2026-10-28 12:00:00', '-' || ((i * 53) % 200) || ' days'),
+       NULL, NULL, NULL, NULL, NULL, NULL
 FROM n;
+
+-- Fake names, emails and streets, built from small lookup lists (dropped at the end).
+-- Merged duplicates (every 40th) repeat the name of the account they were merged into, with a different email.
+CREATE TABLE seed_first_nm (k INTEGER PRIMARY KEY, nm TEXT NOT NULL);
+CREATE TABLE seed_last_nm (k INTEGER PRIMARY KEY, nm TEXT NOT NULL);
+CREATE TABLE seed_street_nm (k INTEGER PRIMARY KEY, nm TEXT NOT NULL);
+INSERT INTO seed_first_nm (k, nm) VALUES
+    (0, 'James'),
+    (1, 'Olivia'),
+    (2, 'Liam'),
+    (3, 'Emma'),
+    (4, 'Noah'),
+    (5, 'Ava'),
+    (6, 'Ethan'),
+    (7, 'Sophia'),
+    (8, 'Lucas'),
+    (9, 'Mia'),
+    (10, 'Mason'),
+    (11, 'Isabella'),
+    (12, 'Logan'),
+    (13, 'Amelia'),
+    (14, 'Aiden'),
+    (15, 'Harper'),
+    (16, 'Jacob'),
+    (17, 'Evelyn'),
+    (18, 'Daniel'),
+    (19, 'Abigail'),
+    (20, 'Henry'),
+    (21, 'Emily'),
+    (22, 'Owen'),
+    (23, 'Charlotte'),
+    (24, 'Samuel'),
+    (25, 'Grace'),
+    (26, 'Wei'),
+    (27, 'Priya'),
+    (28, 'Mateo'),
+    (29, 'Aisha');
+INSERT INTO seed_last_nm (k, nm) VALUES
+    (0, 'Smith'),
+    (1, 'Johnson'),
+    (2, 'Williams'),
+    (3, 'Brown'),
+    (4, 'Jones'),
+    (5, 'Garcia'),
+    (6, 'Miller'),
+    (7, 'Davis'),
+    (8, 'Rodriguez'),
+    (9, 'Martinez'),
+    (10, 'Wilson'),
+    (11, 'Anderson'),
+    (12, 'Taylor'),
+    (13, 'Thomas'),
+    (14, 'Moore'),
+    (15, 'Jackson'),
+    (16, 'Martin'),
+    (17, 'Lee'),
+    (18, 'Thompson'),
+    (19, 'White'),
+    (20, 'Harris'),
+    (21, 'Clark'),
+    (22, 'Lewis'),
+    (23, 'Walker'),
+    (24, 'Patel'),
+    (25, 'Nguyen'),
+    (26, 'Chen'),
+    (27, 'Kim'),
+    (28, 'Murphy'),
+    (29, 'O''Connor');
+INSERT INTO seed_street_nm (k, nm) VALUES
+    (0, 'Maple Avenue'),
+    (1, 'High Street'),
+    (2, 'Oak Road'),
+    (3, 'Park Lane'),
+    (4, 'Cedar Drive'),
+    (5, 'Station Road'),
+    (6, 'Elm Street'),
+    (7, 'Lakeview Boulevard'),
+    (8, 'Willow Way'),
+    (9, 'Church Street'),
+    (10, 'Pine Street'),
+    (11, 'Birch Court'),
+    (12, 'Hillcrest Road'),
+    (13, 'Main Street'),
+    (14, 'Riverside Drive'),
+    (15, 'Victoria Road'),
+    (16, 'Sunset Boulevard'),
+    (17, 'King Street'),
+    (18, 'Queen Street'),
+    (19, 'Chestnut Avenue'),
+    (20, 'Meadow Lane'),
+    (21, 'Spruce Crescent'),
+    (22, 'Harbour View Road'),
+    (23, 'Mill Lane'),
+    (24, 'Forest Avenue'),
+    (25, 'Washington Street'),
+    (26, 'Grove Road'),
+    (27, 'Juniper Place'),
+    (28, 'Elmwood Terrace'),
+    (29, 'Brookside Drive');
+
+UPDATE dim_cust
+SET cust_nm = (SELECT f.nm || ' ' || l.nm FROM seed_first_nm f, seed_last_nm l
+               WHERE f.k = COALESCE(dim_cust.mrg_to_cust_id, dim_cust.cust_id) % 30
+                 AND l.k = (COALESCE(dim_cust.mrg_to_cust_id, dim_cust.cust_id) / 30
+                            + 7 * COALESCE(dim_cust.mrg_to_cust_id, dim_cust.cust_id)) % 30)
+WHERE tst_acct_flg = 'N';
+
+UPDATE dim_cust
+SET eml_addr = CASE
+        WHEN mrg_to_cust_id IS NOT NULL
+            THEN lower(substr(cust_nm, 1, 1) || replace(replace(substr(cust_nm, instr(cust_nm, ' ') + 1), '''', ''), ' ', '')) || cust_id || '@example.com'
+        ELSE lower(replace(replace(cust_nm, '''', ''), ' ', '.')) || '@example.com'
+    END
+WHERE tst_acct_flg = 'N';
+
+UPDATE dim_cust
+SET cust_nm = 'Test User ' || cust_id, eml_addr = 'qa+' || cust_id || '@example.com'
+WHERE tst_acct_flg = 'Y';
+
+-- Default shipping address, in the customer's own country and state/province.
+-- Test accounts share a placeholder address; every 13th real customer never saved one (all NULL).
+UPDATE dim_cust
+SET shp_ctry_cd    = ctry_cd,
+    shp_st_prov_cd = st_prov_cd,
+    shp_addr_ln1   = CASE WHEN tst_acct_flg = 'Y' THEN '123 Test Street'
+                          ELSE ((cust_id * 73) % 980 + 1) || ' '
+                               || (SELECT nm FROM seed_street_nm WHERE k = (cust_id * 13) % 30) END,
+    shp_addr_ln2   = CASE WHEN tst_acct_flg = 'N' AND cust_id % 4 = 1
+                          THEN CASE ctry_cd WHEN 'GB' THEN 'Flat ' ELSE 'Apt ' END || (cust_id % 30 + 1) END,
+    shp_city_nm    = CASE st_prov_cd
+                         WHEN 'CA' THEN CASE cust_id % 3 WHEN 0 THEN 'Los Angeles' WHEN 1 THEN 'San Francisco' ELSE 'San Diego' END
+                         WHEN 'NY' THEN CASE cust_id % 3 WHEN 0 THEN 'New York' WHEN 1 THEN 'Brooklyn' ELSE 'Buffalo' END
+                         WHEN 'TX' THEN CASE cust_id % 3 WHEN 0 THEN 'Austin' WHEN 1 THEN 'Houston' ELSE 'Dallas' END
+                         WHEN 'WA' THEN CASE cust_id % 3 WHEN 0 THEN 'Seattle' WHEN 1 THEN 'Tacoma' ELSE 'Spokane' END
+                         WHEN 'ON' THEN CASE cust_id % 3 WHEN 0 THEN 'Toronto' WHEN 1 THEN 'Ottawa' ELSE 'Mississauga' END
+                         WHEN 'BC' THEN CASE cust_id % 3 WHEN 0 THEN 'Vancouver' WHEN 1 THEN 'Victoria' ELSE 'Burnaby' END
+                         ELSE CASE cust_id % 3 WHEN 0 THEN 'London' WHEN 1 THEN 'Manchester' ELSE 'Leeds' END
+                     END,
+    shp_pstl_cd    = CASE
+                         WHEN st_prov_cd = 'CA' THEN CAST(90001 + (cust_id * 37) % 5000 AS TEXT)
+                         WHEN st_prov_cd = 'NY' THEN CAST(10001 + (cust_id * 37) % 4000 AS TEXT)
+                         WHEN st_prov_cd = 'TX' THEN CAST(75001 + (cust_id * 37) % 4000 AS TEXT)
+                         WHEN st_prov_cd = 'WA' THEN CAST(98001 + (cust_id * 37) % 400 AS TEXT)
+                         WHEN ctry_cd = 'CA' THEN
+                             CASE WHEN st_prov_cd = 'BC' THEN 'V' ELSE CASE cust_id % 3 WHEN 0 THEN 'M' WHEN 1 THEN 'K' ELSE 'L' END END
+                             || (cust_id % 10) || substr('ABCEGHJKLMNPRSTVXY', cust_id % 18 + 1, 1) || ' '
+                             || ((cust_id * 7) % 10) || substr('ABCEGHJKLMNPRSTVXY', (cust_id * 5) % 18 + 1, 1) || ((cust_id * 3) % 10)
+                         ELSE CASE cust_id % 3 WHEN 0 THEN 'SW' WHEN 1 THEN 'M' ELSE 'LS' END || (cust_id % 19 + 1) || ' '
+                             || (cust_id % 10) || substr('ABDEFGHJLNPQRSTUWXYZ', cust_id % 20 + 1, 1)
+                             || substr('ABDEFGHJLNPQRSTUWXYZ', (cust_id * 7) % 20 + 1, 1)
+                     END;
+
+UPDATE dim_cust
+SET shp_addr_ln1 = NULL, shp_addr_ln2 = NULL, shp_city_nm = NULL,
+    shp_st_prov_cd = NULL, shp_pstl_cd = NULL, shp_ctry_cd = NULL
+WHERE cust_id % 13 = 0 AND tst_acct_flg = 'N';
+
+DROP TABLE seed_first_nm;
+DROP TABLE seed_last_nm;
+DROP TABLE seed_street_nm;
 
 INSERT INTO ref_prod_grp (grp_cd, grp_nm, dept_cd) VALUES
     ('KTCH', 'Kitchen & Dining', 'HOME'),

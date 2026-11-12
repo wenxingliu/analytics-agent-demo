@@ -2,6 +2,7 @@
 
 from datetime import date
 
+from analytics_agent.config import settings
 from analytics_agent.metadata import (
     Example,
     Knowledge,
@@ -40,18 +41,20 @@ You answer questions about this business: {business_overview}
 """
 
 
-def render_table(table: Table) -> str:
-    """Compact text for one table; PII columns are left out."""
+def render_table(table: Table, include_pii: bool = False) -> str:
+    """Compact text for one table; PII columns are left out unless `include_pii`."""
     header = f"### {table.table}" + (f"  ({table.grain})" if table.grain else "")
     lines = [header, table.description.strip()]
     for col in table.columns:
-        if col.pii:
+        if col.pii and not include_pii:
             continue
         line = f"- {col.name} {col.type}"
         if col.name in table.primary_key:
             line += " PK"
         if col.foreign_key:
             line += f" → {col.foreign_key}"
+        if col.pii:
+            line += " PII"
         if col.allowed_values:
             line += f" [{'|'.join(col.allowed_values)}]"
         if col.description:
@@ -103,7 +106,7 @@ def build_system_prompt(
         dialect=dialect,
         business_overview=metadata.knowledge.business_overview.strip() or "(not described)",
         today=date.today().isoformat(),
-        catalog="\n\n".join(render_table(t) for t in tables),
+        catalog="\n\n".join(render_table(t, include_pii=settings.allow_pii) for t in tables),
         knowledge=render_knowledge(metadata.knowledge),
         examples=render_examples(pick_examples(metadata.examples, question)),
     )

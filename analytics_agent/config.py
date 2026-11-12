@@ -31,6 +31,7 @@ class Settings:
     max_rows: int
     query_timeout_seconds: int
     max_agent_steps: int
+    allow_pii: bool  # show pii columns to the model
 
 
 def load_settings() -> Settings:
@@ -41,6 +42,8 @@ def load_settings() -> Settings:
         max_rows=int(get("MAX_ROWS", "1000")),
         query_timeout_seconds=int(get("QUERY_TIMEOUT_SECONDS", "30")),
         max_agent_steps=int(get("MAX_AGENT_STEPS", "5")),
+        # On by default; set ALLOW_PII=false to hide pii columns from the model.
+        allow_pii=get("ALLOW_PII", "true").strip().lower() in ("1", "true", "yes"),
     )
 
 
