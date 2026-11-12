@@ -53,6 +53,8 @@ def render_table(table: Table, hide_pii: bool = True) -> str:
             line += " PK"
         if col.foreign_key:
             line += f" → {col.foreign_key}"
+        if col.pii:
+            line += " PII"
         if col.allowed_values:
             line += f" [{'|'.join(col.allowed_values)}]"
         if col.description:

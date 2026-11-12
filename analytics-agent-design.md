@@ -192,7 +192,7 @@ relationships:
 ```
 
 **Required fields:** `table`, `description`, `columns[].name`, `columns[].type`.
-**Optional fields:** everything else. Columns marked `pii: true` are left out of the prompt, so the model never sees or selects them.
+**Optional fields:** everything else. Columns marked `pii: true` are left out of the prompt when the no-PII guardrail is on, so the model never sees or selects them; with it off they are shown, tagged PII.
 
 ### 6.2 Knowledge: `knowledge.yaml`
 

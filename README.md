@@ -39,7 +39,7 @@ The Python code knows nothing about the domain. Everything lives in `semantic_la
 
 `tests/test_no_domain_terms.py` fails if a table, metric or glossary term from `semantic_layer/` shows up in any `.py` file under `analytics_agent/`.
 
-Mark sensitive columns with `pii: true` to keep them out of the prompt. Put terms that need a clarifying question under `ambiguities`.
+Mark sensitive columns with `pii: true`. With `GUARDRAIL_NO_PII=true` they are kept out of the prompt and blocked in queries; with it off they are included, tagged PII. Put terms that need a clarifying question under `ambiguities`.
 
 ## Evals
 
