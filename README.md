@@ -41,6 +41,20 @@ The Python code knows nothing about the domain. Everything lives in `semantic_la
 
 Mark sensitive columns with `pii: true`. With `GUARDRAIL_NO_PII=true` they are kept out of the prompt and blocked in queries; with it off they are included, tagged PII. Put terms that need a clarifying question under `ambiguities`.
 
+## Guardrails
+
+Three settings in `.env` limit what the agent can pull. The app's sidebar lists the ones that are on.
+
+| Setting | Default | Effect |
+|---|---|---|
+| `GUARDRAIL_NO_PII` | `true` | Columns marked `pii: true` are hidden from the model and any query that uses them is rejected. Off: they are shown, tagged PII. |
+| `GUARDRAIL_NO_INDIVIDUAL_DATA` | `true` | Aggregates only: no per-person rows, per-person grouping, or lookups of a single person. Uses the `individual_id`, `pii` and `individual_level` catalog flags. |
+| `GUARDRAIL_MIN_DATE` | empty (off) | `YYYY-MM-DD`. Every dated table is filtered to rows on or after this date, using the `event_time` (or `event_time_via_fk`) catalog flags. |
+
+Personal-data columns also identify a person, so `GUARDRAIL_NO_INDIVIDUAL_DATA` blocks them too: to return names or addresses, set both `GUARDRAIL_NO_PII` and `GUARDRAIL_NO_INDIVIDUAL_DATA` to `false`.
+
+The guardrails are applied to the SQL itself before it runs, so they hold even if the model ignores its instructions.
+
 ## Evals
 
 The evals run the real agent on a set of questions and score the replies. They make live API calls, so they are separate from `pytest`.
