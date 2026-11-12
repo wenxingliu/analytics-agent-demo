@@ -15,9 +15,11 @@ columns:
     type: INTEGER
     description: Account that placed the order. May be a merged duplicate; see dim_cust.mrg_to_cust_id.
     foreign_key: dim_cust.cust_id
+    individual_id: true
   - name: ord_ts
     type: TIMESTAMP
     description: When the order was placed, UTC, text 'YYYY-MM-DD HH:MM:SS'.
+    event_time: true
   - name: shp_ts
     type: TIMESTAMP
     description: When the order shipped, UTC, same text format. NULL if not shipped yet or cancelled.

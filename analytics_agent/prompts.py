@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from analytics_agent.config import settings
+from analytics_agent.config import Guardrails
 from analytics_agent.metadata import (
     Example,
     Knowledge,
@@ -28,7 +28,7 @@ You answer questions about this business: {business_overview}
 - Otherwise call run_sql. After you see the results, call final_answer with a short
   summary of the key numbers and any assumptions.
 - For follow-ups, keep the filters and definitions from earlier turns unless the user changes them.
-- Today's date is {today}.
+- Today's date is {today}.{restrictions}
 
 ## Data Catalog
 {catalog}
@@ -41,12 +41,12 @@ You answer questions about this business: {business_overview}
 """
 
 
-def render_table(table: Table, include_pii: bool = False) -> str:
-    """Compact text for one table; PII columns are left out unless `include_pii`."""
+def render_table(table: Table, hide_pii: bool = True) -> str:
+    """Compact text for one table; PII columns are left out unless hide_pii is off."""
     header = f"### {table.table}" + (f"  ({table.grain})" if table.grain else "")
     lines = [header, table.description.strip()]
     for col in table.columns:
-        if col.pii and not include_pii:
+        if col.pii and hide_pii:
             continue
         line = f"- {col.name} {col.type}"
         if col.name in table.primary_key:
@@ -97,8 +97,34 @@ def render_examples(examples: list[Example]) -> str:
     return "\n\n".join(f"Q: {e.question}\n```sql\n{e.sql.strip()}\n```" for e in examples)
 
 
+def render_restrictions(rails: Guardrails) -> str:
+    """One bullet per active guardrail, so the model does not waste steps on blocked queries."""
+    lines = []
+    if rails.min_date:
+        lines.append(
+            f"Data dated before {rails.min_date} is not available and is filtered out automatically. "
+            "If the user asks about earlier periods, say so instead of querying."
+        )
+    if rails.no_individual_data:
+        lines.append(
+            "Never return data about individual people: no per-person rows, ids or names, and no "
+            "lookups of one person. Only aggregated results (counts, sums, averages by group) are "
+            "allowed. If asked for individuals, explain this and offer an aggregate instead."
+        )
+    if rails.no_pii:
+        lines.append(
+            "Never select, filter or group by personal data (PII) columns. If asked for them, say "
+            "that this data is not available."
+        )
+    return "".join(f"\n- {line}" for line in lines)
+
+
 def build_system_prompt(
-    metadata: Metadata, dialect: str, question: str, history_text: str = ""
+    metadata: Metadata,
+    dialect: str,
+    question: str,
+    rails: Guardrails,
+    history_text: str = "",
 ) -> str:
     """Fill the template; `history_text` is the recent conversation, used to pick tables."""
     tables = pick_tables(metadata.tables, f"{history_text} {question}")
@@ -106,7 +132,8 @@ def build_system_prompt(
         dialect=dialect,
         business_overview=metadata.knowledge.business_overview.strip() or "(not described)",
         today=date.today().isoformat(),
-        catalog="\n\n".join(render_table(t, include_pii=settings.allow_pii) for t in tables),
+        restrictions=render_restrictions(rails),
+        catalog="\n\n".join(render_table(t, rails.no_pii) for t in tables),
         knowledge=render_knowledge(metadata.knowledge),
         examples=render_examples(pick_examples(metadata.examples, question)),
     )

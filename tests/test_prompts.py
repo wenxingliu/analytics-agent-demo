@@ -19,5 +19,5 @@ def test_pii_columns_hidden_by_default():
 
 
 def test_pii_columns_shown_and_tagged_when_allowed():
-    text = render_table(table(), include_pii=True)
+    text = render_table(table(), hide_pii=False)
     assert "- col_secret VARCHAR PII" in text

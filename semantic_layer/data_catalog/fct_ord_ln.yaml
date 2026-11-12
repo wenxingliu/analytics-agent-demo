@@ -11,6 +11,7 @@ columns:
     type: INTEGER
     description: Order this line belongs to.
     foreign_key: fct_ord_hdr.ord_id
+    event_time_via_fk: true
   - name: ln_no
     type: INTEGER
     description: Line number within the order.

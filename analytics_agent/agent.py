@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 from openai import OpenAIError
 
-from analytics_agent import db, llm
+from analytics_agent import db, guardrails, llm
 from analytics_agent.config import Provider, settings
 from analytics_agent.metadata import Metadata
 from analytics_agent.prompts import build_system_prompt
@@ -117,7 +117,9 @@ def _run_loop(
     history_text = " ".join(str(m.get("content") or "") for m in history if m["role"] == "user")
     system = {
         "role": "system",
-        "content": build_system_prompt(metadata, db.dialect(), user_message, history_text),
+        "content": build_system_prompt(
+            metadata, db.dialect(), user_message, settings.guardrails, history_text
+        ),
     }
     last_sql, last_error, last_result = "", "", None
 
@@ -138,9 +140,10 @@ def _run_loop(
             sql = str(result.args.get("sql", ""))
             try:
                 last_sql = db.validate_sql(sql)
+                last_sql = guardrails.enforce(last_sql, metadata, db.dialect(), settings.guardrails)
                 last_result = db.run_query(last_sql)
                 last_error, output = "", preview(last_result)
-            except (db.UnsafeSQLError, db.QueryError) as e:
+            except (db.UnsafeSQLError, guardrails.GuardrailError, db.QueryError) as e:
                 last_sql, last_error = sql, str(e)
                 last_result, output = None, f"Error: {e}"
             _add_tool_exchange(conversation, result, last_sql, output)

@@ -3,6 +3,7 @@ description: >
   Customer master, one row per customer account. Includes internal test accounts, closed accounts
   and duplicate accounts that were merged into another one (see mrg_to_cust_id).
 grain: one row per cust_id
+individual_level: true
 primary_key: [cust_id]
 tags: [customers, loyalty]
 
@@ -10,6 +11,7 @@ columns:
   - name: cust_id
     type: INTEGER
     description: Customer account id.
+    individual_id: true
   - name: cust_nm
     type: VARCHAR
     description: >
@@ -65,10 +67,12 @@ columns:
       If not NULL, this account is a duplicate that was merged into the account with this cust_id.
       The duplicate keeps its own email, phone, country and shipping address, which can differ from the surviving account's.
     foreign_key: dim_cust.cust_id
+    individual_id: true
   - name: ref_cust_id
     type: INTEGER
     description: The customer who referred this one. Only set when reg_chnl_cd = 'REF'.
     foreign_key: dim_cust.cust_id
+    individual_id: true
   - name: lst_login_ts
     type: TIMESTAMP
     description: Last login time, UTC. Logins are not orders; do not use this to define active customers.

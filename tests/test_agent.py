@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 from openai import OpenAIError
 
-from analytics_agent import agent, db, llm
+from analytics_agent import agent, db, guardrails, llm
 from analytics_agent.agent import Conversation
 from analytics_agent.config import Provider
 from analytics_agent.metadata import Knowledge, Metadata, Table
@@ -33,6 +33,7 @@ def script(monkeypatch):
     monkeypatch.setattr(llm, "chat", fake_chat)
     monkeypatch.setattr(db, "dialect", lambda: "sqlite")
     monkeypatch.setattr(db, "validate_sql", lambda sql: sql)
+    monkeypatch.setattr(guardrails, "enforce", lambda sql, *args: sql)
 
     def fake_run(sql):
         if "bad" in sql:
