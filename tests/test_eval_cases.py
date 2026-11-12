@@ -55,3 +55,60 @@ def test_matches_expected(reply, expected, ok):
 
 def test_numbers_in_strips_separators_and_trailing_punctuation():
     assert numbers_in("Revenue: $1,234,567.89, then 42.") == ["1234567.89", "42"]
+
+
+def test_numeric_match_skips_the_judge_and_a_miss_asks_it(monkeypatch):
+    from analytics_agent import llm
+    from analytics_agent.agent import Reply
+    from evals import run
+    from evals.grading import Case
+
+    calls = []
+
+    def fake_judge(messages, name, schema, provider):
+        calls.append(messages[0]["content"])
+        return {"passed": False, "reason": "wrong value"}
+
+    monkeypatch.setattr(llm, "chat_json", fake_judge)
+    case = Case(query="How many?", exact_match=True, expected_response="290")
+    assert run.grade(case, Reply(text="There are 290."), judge_provider=None) == (True, "")
+    assert calls == []
+    passed, reason = run.grade(case, Reply(text="There are 312."), judge_provider=None)
+    assert not passed and "wrong value" in reason
+    assert calls == [run.JUDGE_NUMBER_PROMPT]
+
+
+def test_behavior_cases_always_go_to_the_judge(monkeypatch):
+    from analytics_agent import llm
+    from analytics_agent.agent import Reply
+    from evals import run
+    from evals.grading import Case
+
+    monkeypatch.setattr(llm, "chat_json", lambda *a: {"passed": True, "reason": "ok"})
+    case = Case(query="Hi", exact_match=False, expected_response="Declines politely.")
+    assert run.grade(case, Reply(text="Sorry, I can't help with that."), judge_provider=None) == (
+        True,
+        "ok",
+    )
+    monkeypatch.setattr(llm, "chat_json", lambda *a: {})
+    assert run.grade(case, Reply(text="..."), judge_provider=None)[0] is False
+
+
+def test_report_lists_summary_failures_and_every_case():
+    from datetime import datetime
+
+    from analytics_agent.agent import Reply
+    from evals.grading import Case
+    from evals.report import render
+    from evals.run import Result
+
+    results = [
+        Result(Case("How many?", True, "290"), Reply(text="290", sql="SELECT 1"), True, "", 1.0),
+        Result(
+            Case("A | B?", False, "Declines."), Reply(text="Sure!"), False, "did not decline", 2.0
+        ),
+    ]
+    text = render("P / m", "J / j", results, datetime(2026, 1, 1), 3.0)
+    assert "**1/2 (50%)**" in text
+    assert "### 1. A | B?" in text and "did not decline" in text
+    assert "| 2 | **FAIL** | behavior | A \\| B? | 2.0 s |" in text

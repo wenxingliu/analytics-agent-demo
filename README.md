@@ -57,9 +57,9 @@ The guardrails are applied to the SQL itself before it runs, so they hold even i
 
 ## Evals
 
-The evals run the real agent on a set of questions and score the replies. They make live API calls, so they are separate from `pytest`.
+The evals run the real agent on a set of questions and score the replies with an LLM judge: a fixed model, OpenAI `gpt-6-luna` by default, separate from the model under test. They make live API calls, so they are separate from `pytest`.
 
-**Prerequisites:** set up as in [Setup](#setup) and put at least one provider key in `.env`. The demo database does not need to be seeded; the runner builds its own.
+**Prerequisites:** set up as in [Setup](#setup), with `OPENAI_API_KEY` in `.env` for the judge (plus a key for the provider under test, if different). The demo database does not need to be seeded; the runner builds its own.
 
 **Run all cases:**
 
@@ -74,11 +74,27 @@ python -m evals.run
 | `--provider kimi\|openai` | Provider to test (default: the first one configured in `.env`) |
 | `--model <id>` | Model to test (default: the provider's `*_MODEL`, else the first model it lists) |
 | `-k <text>` | Only run cases whose query contains this text, e.g. `-k revenue` |
+| `--judge-provider kimi\|openai` | Provider of the judge model (default: `openai`) |
+| `--judge-model <id>` | Judge model (default: `gpt-6-luna`) |
 | `--workers <n>` | Cases to run in parallel (default 4) |
 
 ```bash
 python -m evals.run --provider openai --model <id> -k refunds
 ```
+
+**Report for one model:** runs every case on the model you name and writes a Markdown report: pass rates overall and by type, each failure with the expected answer, the reply, the SQL and the judge's reason, and a table of all cases with timings. The provider is found from the model id. Reports go to `evals/reports/` (git-ignored); `--out` writes elsewhere. It takes the same `--judge-*`, `-k` and `--workers` options.
+
+```bash
+python -m evals.report kimi-k3
+```
+
+**Comparing models:** runs the evals on several models, each in its own process with the same judge, and writes `compare.md` (leaderboard with pass rates and cost, token counts, a case-by-case grid and each model's failures) plus one report per model into `evals/reports/<date>-compare/`.
+
+```bash
+python -m evals.compare kimi-k2.6 kimi-k3 kimi-k3.1-pro --parallel 2
+```
+
+**Cost:** every model call's token usage is recorded, and reports price it with `evals/pricing.yaml` (USD per 1M tokens, uncached input, cached input and output). Add a line there for any new model; a model without a price shows "no price". The prices are list prices from a given date, so re-check them before quoting the numbers.
 
 **Reading the output:** each case prints `PASS` or `FAIL` with its type (`number` or `behavior`), failures add a one-line reason, and the end shows totals for each type. The exit code is 0 if every case passed and 1 otherwise, so it can gate a script. A full run takes about two minutes.
 
@@ -86,7 +102,7 @@ python -m evals.run --provider openai --model <id> -k refunds
 
 - `query`: the question.
 - `exact_match`: `true` if the expected response is a number or name, `false` if it describes a behavior.
-- `expected_response`: for `true`, the correct answer. A number matches if the reply contains it at the precision the reply shows ("$47,904" matches 47903.60). For `false`, the expected behavior in words (out-of-scope questions, schema questions, guardrail violations, clarifying questions), judged by a second model call.
+- `expected_response`: for `true`, the correct answer. A reply that contains the number at the precision it shows ("$47,904" matches 47903.60) passes without a judge call; otherwise the judge decides, so "$47.9K" or a number written in words can still pass. For `false`, the expected behavior in words (out-of-scope questions, schema questions, guardrail violations, clarifying questions), always graded by the judge.
 
 The runner uses a throwaway copy of the demo database and always turns all guardrails on, so your `.env` guardrail settings do not affect it. Each case runs once and model answers vary, so a single failure is something to look at, not necessarily a regression.
 
