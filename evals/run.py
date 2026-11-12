@@ -12,8 +12,10 @@ every guardrail on, so results do not depend on your .env guardrail settings.
 
 import argparse
 import os
+import shutil
 import sys
 import tempfile
+import textwrap
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
@@ -95,14 +97,11 @@ def grade(case: Case, reply, judge_provider) -> tuple[bool, str]:
     """Numeric cases: an exact match passes without a judge call. Everything else goes to the judge."""
     if case.exact_match:
         if reply.error and not reply.text:
-            return False, f"error: {reply.error[:150]}"
+            return False, f"error: {reply.error}"
         if matches_expected(reply.text, case.expected_response):
             return True, ""
         passed, reason = judge(case, reply, judge_provider)
-        return (
-            passed,
-            f"judge: {reason} (expected {case.expected_response}; reply: {reply.text[:150]!r})",
-        )
+        return passed, f"judge: {reason}"
     return judge(case, reply, judge_provider)
 
 
@@ -199,6 +198,28 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--workers", type=int, default=4, help="cases to run in parallel")
 
 
+def reply_text(reply) -> str:
+    """What the user would have seen: the answer, a clarifying question or an error."""
+    if reply.text:
+        return reply.text
+    if reply.question:
+        options = f" (options: {', '.join(reply.options)})" if reply.options else ""
+        return f"[clarifying question] {reply.question}{options}"
+    if reply.error:
+        return f"[error] {reply.error}"
+    return "[no reply]"
+
+
+def print_field(label: str, text: str, full: bool, limit: int = 300) -> None:
+    """One labelled, indented, wrapped field; cut to `limit` characters unless `full`."""
+    text = " ".join(str(text).split())
+    if not full and len(text) > limit:
+        text = text[: limit - 1] + "…"
+    width = max(60, shutil.get_terminal_size((100, 20)).columns - 2)
+    first = " " * 6 + f"{label + ':':<10}"
+    print(textwrap.fill(text, width, initial_indent=first, subsequent_indent=" " * len(first)))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
@@ -206,6 +227,9 @@ def main() -> None:
     )
     parser.add_argument("--model", help="model id (default: the provider's default)")
     add_common_args(parser)
+    parser.add_argument(
+        "--full", action="store_true", help="print whole responses (default: cut at 300 characters)"
+    )
     args = parser.parse_args()
 
     def announce(provider, judge_provider, n: int) -> None:
@@ -226,9 +250,11 @@ def main() -> None:
     for r in results:
         kind = "number  " if r.case.exact_match else "behavior"
         print(f"{'PASS' if r.passed else 'FAIL'}  {kind}  {r.case.query}")
+        print_field("Expected", r.case.expected_response, args.full)
+        print_field("Response", reply_text(r.reply), args.full)
         if not r.passed:
-            print(f"      {r.reason}")
-    print()
+            print_field("Why", r.reason, full=True)
+        print()
     for label, exact in (("Numeric answers", True), ("Behavior", False)):
         scored = [r.passed for r in results if r.case.exact_match == exact]
         if scored:

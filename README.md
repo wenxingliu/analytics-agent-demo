@@ -96,7 +96,7 @@ python -m evals.compare kimi-k2.6 kimi-k3 kimi-k3.1-pro --parallel 2
 
 **Cost:** every model call's token usage is recorded, and reports price it with `evals/pricing.yaml` (USD per 1M tokens, uncached input, cached input and output). Add a line there for any new model; a model without a price shows "no price". The prices are list prices from a given date, so re-check them before quoting the numbers.
 
-**Reading the output:** each case prints `PASS` or `FAIL` with its type (`number` or `behavior`), failures add a one-line reason, and the end shows totals for each type. The exit code is 0 if every case passed and 1 otherwise, so it can gate a script. A full run takes about two minutes.
+**Reading the output:** each case prints `PASS` or `FAIL` with its type (`number` or `behavior`), then the expected response and the agent's actual response (cut at 300 characters; `--full` prints them whole). Failures add the reason, and the end shows totals for each type. The exit code is 0 if every case passed and 1 otherwise, so it can gate a script. A full run takes about two minutes.
 
 **The cases** are in `evals/cases.yaml`. Each has three fields:
 
