@@ -1,5 +1,5 @@
 app:
-  title: Acme Sales Analytics
+  title: Sales Analytics
   subtitle: Ask questions about orders, revenue, customers, products and refunds.
   starter_questions:
     - What was net revenue by fiscal quarter?
