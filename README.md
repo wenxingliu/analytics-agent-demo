@@ -18,7 +18,7 @@ Both providers use the OpenAI-compatible chat API. Configure either or both in `
 
 | Provider | Variables |
 |---|---|
-| Kimi (Moonshot) | `MOONSHOT_API_KEY`, optional `KIMI_MODEL`, optional `MOONSHOT_BASE_URL` (`https://api.moonshot.cn/v1` for China) |
+| Kimi (Moonshot) | `MOONSHOT_API_KEY`, optional `KIMI_MODEL` (default `kimi-k3.1-pro-highspeed`), optional `MOONSHOT_BASE_URL` (`https://api.moonshot.cn/v1` for China) |
 | OpenAI | `OPENAI_API_KEY`, optional `OPENAI_MODEL`, `OPENAI_BASE_URL` |
 
 A provider is available once its key is set. The sidebar has a **Provider** selector and a **Model** selector, which lists the models fetched from the provider's API (type a model id if the list cannot be fetched). The `*_MODEL` variable is just the default selection. You can change either at any point, even mid-conversation. `LLM_PROVIDER=kimi|openai` chooses which is selected first. Check each provider's docs for current model ids.
