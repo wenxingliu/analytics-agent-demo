@@ -90,6 +90,9 @@ def load_settings() -> Settings:
     )
 
 
+DEFAULT_KIMI_MODEL = "kimi-k3.1-pro-highspeed"
+
+
 def load_providers() -> dict[str, Provider]:
     """Providers with an API key set, in order; LLM_PROVIDER picks the first one."""
     get = os.environ.get
@@ -99,7 +102,7 @@ def load_providers() -> dict[str, Provider]:
             "Kimi (Moonshot)",
             get("MOONSHOT_API_KEY", ""),
             get("MOONSHOT_BASE_URL", "https://api.moonshot.ai/v1"),
-            get("KIMI_MODEL", ""),
+            get("KIMI_MODEL") or DEFAULT_KIMI_MODEL,
         ),
         Provider(
             "openai",

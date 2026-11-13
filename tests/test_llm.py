@@ -28,3 +28,25 @@ def test_list_models_sorted_and_chat_only(monkeypatch):
 def test_list_models_failure_gives_empty_list(monkeypatch):
     monkeypatch.setattr(llm, "_client", lambda *_: FakeClient(None))
     assert llm.list_models(PROVIDER) == []
+
+
+def test_track_usage_records_calls_inside_the_block_only():
+    from types import SimpleNamespace
+
+    from analytics_agent.llm import Usage, _record, track_usage
+
+    provider = SimpleNamespace(model="m")
+    response = SimpleNamespace(
+        usage=SimpleNamespace(
+            prompt_tokens=100,
+            completion_tokens=7,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=40),
+        )
+    )
+    _record(provider, response)  # not tracked: no error, nothing recorded
+    with track_usage() as usage:
+        _record(provider, response)
+        _record(provider, response)
+    _record(provider, response)
+    assert isinstance(usage, Usage)
+    assert usage.by_model == {"m": {"calls": 2, "input": 120, "cached_input": 80, "output": 14}}
