@@ -1,5 +1,7 @@
 # Analytics Agent
 
+Demo code for the Maven Lightning Lesson [How to Trust Your Analytics Agent](https://maven.com/p/f06c31/how-to-trust-your-analytics-agent).
+
 A text-to-SQL chat app. Ask a question in plain language; the agent asks a clarifying question if it needs to, writes SQL, runs it read-only and shows the results. Built with Streamlit and Kimi (Moonshot AI) through its OpenAI-compatible API. See `analytics-agent-design.md` for the design.
 
 ## Setup
